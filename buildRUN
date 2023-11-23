@@ -1,0 +1,26 @@
+#!/bin/bash 
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [ ! -f "hetzner.ini" ]; then
+    echo "Enter HetznerToken: "
+    read -r HETZNERTOKEN
+    echo "dns_hetzner_api_token = $HETZNERTOKEN" > "hetzner.ini"
+fi
+
+docker build . -t webserver
+docker rm --force webserver > /dev/null 2>&1 || true
+
+docker run -d \
+     --restart=unless-stopped \
+     --net=host \
+     -v $SCRIPT_DIR/letsencrypt:/etc/letsencrypt \
+     -v $SCRIPT_DIR/sites-enabled:/etc/nginx/sites-enabled \
+     -v $SCRIPT_DIR/sites-available:/etc/nginx/sites-available \
+     -v $SCRIPT_DIR/hetzner.ini:/hetzner.ini \
+     -v $SCRIPT_DIR/www:/var/www \
+     -e HETZNERTOKEN="$HETZNERTOKEN" \
+     --name=webserver webserver
+
+echo "CTR-L to stop log"
+docker logs --follow webserver

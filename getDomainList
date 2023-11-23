@@ -1,0 +1,73 @@
+#!/bin/bash
+
+SSLPATH=/etc/nginx/ssl
+
+
+if [ -z "$SITESPATH" ]; then
+    if [ -d "/etc/nginx/sites-enabled" ]; then
+        SITESPATH="/etc/nginx/sites-enabled"
+    elif [ -d "sites-enabled" ]; then
+        SITESPATH="sites-enabled"
+    else
+        echo "No valid directory found for SITESPATH."
+        exit 1
+    fi
+fi
+
+
+if [ -z "$SSLPATH" ]; then
+    if [ -d "ssl" ]; then
+        SSLPATH="ssl"
+    elif [ -d "/etc/nginx/ssl" ]; then
+        SSLPATH="/etc/nginx/ssl"
+    else
+        echo "No valid directory found for SSLPATH."
+#        exit 1
+    fi
+fi
+
+
+if [[ ! -z "$SSLPATH" ]] && [[ -d "$SSLPATH" || -f "$SSLPATH" ]]; then
+   hours_old=$((($(date +%s)-$(date -r /etc/nginx/ssl/nginx.key +%s))/(60*60)))
+   echo "Hours since last key $hours_old"
+
+   if [ $hours_old -lt 1 ]; then
+    echo "nothing to do"
+    exit 0
+   fi
+fi
+
+anyFailures=0
+for f in $SITESPATH/*
+do
+  domains=$(grep -oP '(?<=server_name\s).*(?=;)' $f)
+  IFS=' ' read -r -a array <<< "$domains"
+  for domain in "${array[@]}" 
+  do
+    if [[ "$DOMAIN_LIST" != *"-d $domain"* ]]; then  # Add if not a duplicate domain      
+        # Fetch the first A (IPv4) record
+        ipv4_address=$(dig A $domain +short | head -n 1)
+        # Fetch the first AAAA (IPv6) record
+        ipv6_address=$(dig AAAA $domain +short | head -n 1)
+
+        if [ -z "$ipv4_address" ] && [ -z "$ipv6_address" ]; then
+           echo "$domain - FAILED DNS"
+           anyFailures=1
+        else
+           printf "%-30s - IPv4: %s, IPv6: %s\n" "$domain" "$ipv4_address" "$ipv6_address"
+           DOMAIN_LIST+="-d $domain "
+        fi   
+    fi
+  done
+done
+
+if [ -z "$DOMAIN_LIST" ]; then
+    echo "No host domains found."
+    exit 1
+elif [ "$anyFailures" -eq 1 ]; then
+    echo "There were failures in DNS resolution."
+    exit 1    
+else
+    echo $DOMAIN_LIST
+fi
+

@@ -1,0 +1,7 @@
+*~
+snap
+hetzner.ini
+letsencrypt/*
+sites-available/*
+sites-enabled/*
+www/*

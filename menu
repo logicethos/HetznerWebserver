@@ -1,0 +1,90 @@
+#!/bin/bash
+
+
+# Function to check if the Docker container is running
+is_webserver_running() {
+    docker ps | grep -q 'webserver'
+    return $?
+}
+
+# Function to stop the web server
+stop_web_server() {
+    echo "Stopping web server..."
+    # Command to stop your Docker container
+    docker stop webserver
+}
+
+# Function to build and start the web server
+build_start_web_server() {
+    echo "Building and starting web server..."
+    # Command to build and run your Docker container
+    source buildRUN
+}
+
+# Function to reload Nginx config
+reload_nginx_config() {
+    echo "Reloading Nginx Configuration..."
+    # Command to reload Nginx config
+    docker exec -it webserver nginx -s reload
+}
+
+# Function to test Nginx config
+test_nginx_config() {
+    echo "Testing Nginx Configuration..."
+    # Command to test Nginx config
+    docker exec -it webserver nginx -t
+}
+
+# Function to list domains
+list_domains() {
+    echo "Listing Domains..."
+    # Command to list domains
+    source getDomainList
+}
+
+press_any_key() {
+    echo "Press any key to continue"
+    read -n 1 -s -r
+}
+
+# Main menu logic
+while true; do
+    if is_webserver_running; then
+        CHOICE=$(whiptail --title "Web Server Menu" --menu "Choose an option" 15 60 4 \
+            "1" "Stop Web Server" \
+            "2" "Test Nginx Config" \
+            "3" "List Domains" 3>&1 1>&2 2>&3)
+    else
+        CHOICE=$(whiptail --title "Web Server Menu" --menu "Choose an option" 15 60 4 \
+            "1" "Build & Start Webserver" \
+            "2" "Test Nginx Config" \
+            "3" "List Domains" 3>&1 1>&2 2>&3)
+    fi
+
+    case $CHOICE in
+        1)
+            if is_webserver_running; then
+                stop_web_server
+            else
+                build_start_web_server
+            fi
+            press_any_key
+            ;;            
+	2)
+            if is_webserver_running; then
+                test_nginx_config
+            else
+                reload_nginx_config
+            fi
+            press_any_key
+            ;;            
+         3)
+            list_domains
+            press_any_key
+            ;;
+        *)
+            echo "Exiting..."
+            exit
+            ;;
+    esac
+done
