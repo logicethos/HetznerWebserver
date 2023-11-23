@@ -28,6 +28,10 @@ reload_nginx_config() {
     docker exec -it webserver nginx -s reload
 }
 
+request_new_certificates() {
+    docker exec -it webserver /getcerts.sh
+}
+
 # Function to test Nginx config
 test_nginx_config() {
     echo "Testing Nginx Configuration..."
@@ -42,6 +46,36 @@ list_domains() {
     source getDomainList
 }
 
+choose_file() {
+    local path=$1
+    local dir_list=()
+    local dir
+
+    # Check if the path exists
+    if [ ! -d "$path" ]; then
+        echo "The specified path does not exist."
+        return 1
+    fi
+    
+    for file in "$path"/*; do
+        if [ -f "$file" ] && [[ ! $file =~ .*\~$ ]]; then
+            file_name=$(basename "$file")
+            dir_list+=("$file_name" "")
+        fi
+    done
+
+    # Use whiptail to create a menu with the directories
+    CHOSEN_FILE=$(whiptail --title "Site Selection" --menu "Choose a file" 20 60 10 "${dir_list[@]}" 3>&1 1>&2 2>&3)
+
+    # Check if the user made a selection
+    if [ -z "$CHOSEN_FILE" ]; then
+        echo "No selection made."
+        return 1
+    else
+        echo "$CHOSEN_FILE"
+    fi
+}
+
 press_any_key() {
     echo "Press any key to continue"
     read -n 1 -s -r
@@ -50,41 +84,86 @@ press_any_key() {
 # Main menu logic
 while true; do
     if is_webserver_running; then
-        CHOICE=$(whiptail --title "Web Server Menu" --menu "Choose an option" 15 60 4 \
+        CHOICE=$(whiptail --title "Web Server Menu" --menu "Choose an option" 15 60 6 \
             "1" "Stop Web Server" \
             "2" "Test Nginx Config" \
-            "3" "List Domains" 3>&1 1>&2 2>&3)
+            "3" "List Domains" \
+            "4" "Reload Nginx Config" \
+            "5" "Request new Certificates" \
+            "6" "Write new password"  3>&1 1>&2 2>&3)
+            
+                case $CHOICE in
+  		   1)
+        	    stop_web_server
+	            press_any_key
+	            ;;            
+		   2)
+        	    test_nginx_config
+        	    press_any_key
+	            ;;            
+       		   3)
+           	    list_domains
+	            press_any_key
+	            ;;
+	           4)
+	            reload_nginx_config
+	            press_any_key 
+	            ;;
+	           5)
+	            request_new_certificates
+	            press_any_key
+	            ;;
+	           6)
+ 	            sitesPath="./sites-available"
+	            selected_file=$(choose_file "$sitesPath")
+        	    pwFile="/etc/nginx/$selected_file.htpasswd"
+                    docker exec -it webserver python3 makePassword.py $pwFile
+                    echo "Please add this to your config"
+                    echo '   auth_basic "Restricted Access";'
+                    echo "   auth_basic_user_file $pwFile;"
+                    press_any_key
+	            ;;
+		   *)
+	            echo "Exiting..."
+        	    exit
+	            ;;
+	    esac                       
     else
-        CHOICE=$(whiptail --title "Web Server Menu" --menu "Choose an option" 15 60 4 \
+    
+        CHOICE=$(whiptail --title "Web Server Menu" --menu "Choose an option" 15 60 5 \
             "1" "Build & Start Webserver" \
             "2" "Test Nginx Config" \
-            "3" "List Domains" 3>&1 1>&2 2>&3)
-    fi
+            "3" "List Domains" \
+            "4" "Write new password"  3>&1 1>&2 2>&3)
 
-    case $CHOICE in
-        1)
-            if is_webserver_running; then
-                stop_web_server
-            else
-                build_start_web_server
-            fi
-            press_any_key
-            ;;            
-	2)
-            if is_webserver_running; then
-                test_nginx_config
-            else
-                reload_nginx_config
-            fi
-            press_any_key
-            ;;            
-         3)
-            list_domains
-            press_any_key
-            ;;
-        *)
-            echo "Exiting..."
-            exit
-            ;;
-    esac
+	case "$CHOICE" in
+	    1)
+        	build_start_web_server
+	        press_any_key
+        	;;            
+	    2)
+	        test_nginx_config
+        	press_any_key
+	        ;;            
+	    3)
+	        list_domains
+	        press_any_key
+	        ;;
+	    4)
+	        sitesPath="./sites-available"
+	        selected_file=$(choose_file "$sitesPath")
+	        pwFile="/etc/nginx/$selected_file.htpasswd"
+	        docker exec -it webserver python3 makePassword.py $pwFile
+	        echo "Please add this to your config"
+	        echo '   auth_basic "Restricted Access";'
+	        echo "   auth_basic_user_file $pwFile;"
+	        press_any_key
+	        ;;
+	    *)
+	        echo "Exiting..."
+	        exit
+	        ;;
+	esac
+      
+fi
 done

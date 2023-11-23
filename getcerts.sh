@@ -1,6 +1,7 @@
 #!/bin/bash
 
 HETZNER_INI="/hetzner.ini"
+EXTRA_ARGS="$@"
 
 if [ ! -f "$HETZNER_INI" ]; then
   if [ -n "$HETZNER_INI" ]; then
@@ -22,9 +23,10 @@ source getDomainList
 certbot certonly \
    --authenticator dns-hetzner \
    --dns-hetzner-credentials $HETZNER_INI \
-   --agree-tos --non-interactive \
+   --agree-tos --non-interactive --expand \
    $EMAILREG \
-   $DOMAIN_LIST
+   $DOMAIN_LIST \
+   $EXTRA_ARGS
 
 function find_and_copy_most_recent_file() {
     search_path="$1"
